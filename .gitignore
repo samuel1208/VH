@@ -1,0 +1,9 @@
+build*
+# by Emacs
+*~
+.#*
+\#*
+*#
+*.elc
+# by Python
+*.pyc
