@@ -13,7 +13,8 @@ Extract_KeyFrame::Extract_KeyFrame(void* memHandle)
 }
 
 Extract_KeyFrame::~Extract_KeyFrame()
-{}
+{
+}
 
 int Extract_KeyFrame::computeHist(unsigned char *pRGB,
                                   int width, int height, int pitch,
@@ -22,18 +23,18 @@ int Extract_KeyFrame::computeHist(unsigned char *pRGB,
     if ((0==pRGB)||(0==pR)||(0==pG)||(0==pB))
         return -1;
     
-    TMemSet(pR, 0, HIST_BIN*sizeof(double));
-    TMemSet(pG, 0, HIST_BIN*sizeof(double));
-    TMemSet(pB, 0, HIST_BIN*sizeof(double));
+    TMemSet(pR, 0, SAM_COLOR_HIST_BIN*sizeof(double));
+    TMemSet(pG, 0, SAM_COLOR_HIST_BIN*sizeof(double));
+    TMemSet(pB, 0, SAM_COLOR_HIST_BIN*sizeof(double));
     
     for (int h=0; h<height; h++)
     {
         for (int w=0; w<width; w++)
         {
             int R, G, B;
-            R = (int)(pRGB[3*w+0]/256.0f*HIST_BIN);
-            G = (int)(pRGB[3*w+1]/256.0f*HIST_BIN);
-            B = (int)(pRGB[3*w+2]/256.0f*HIST_BIN);
+            R = (int)(pRGB[3*w+0]/256.0f*SAM_COLOR_HIST_BIN);
+            G = (int)(pRGB[3*w+1]/256.0f*SAM_COLOR_HIST_BIN);
+            B = (int)(pRGB[3*w+2]/256.0f*SAM_COLOR_HIST_BIN);
             pR[R] += 1;
             pG[G] += 1;
             pB[B] += 1;
@@ -43,7 +44,7 @@ int Extract_KeyFrame::computeHist(unsigned char *pRGB,
     
     // normalize
     int factor = height*width;
-    for (int i=0; i<HIST_BIN; i++)
+    for (int i=0; i<SAM_COLOR_HIST_BIN; i++)
     {
         pR[i] /= factor;
         pG[i] /= factor;
@@ -67,7 +68,7 @@ int Extract_KeyFrame::conputeBoundary(double *pR_pre, double *pG_pre,
     double leng2 = 0;
     *pIsBoundary = 0;
     
-    for (int i=0; i<HIST_BIN; i++)
+    for (int i=0; i<SAM_COLOR_HIST_BIN; i++)
     {
         inner += pR_pre[i]*pR_cur[i];
         inner += pG_pre[i]*pG_cur[i];
@@ -104,30 +105,34 @@ int Extract_KeyFrame::extractKF(unsigned char **ppRGB, int width,
     double *pR_cur=0, *pG_cur=0, *pB_cur=0;
     int isBoundary;
     int i;
+#ifdef USE_MIDDLE_FRAME_AS_KEY_FRAME
+    int shot_start = 1;
+#endif
     
     if (0==ppRGB)
         goto SAM_EXIT;    
 
-    pR_pre = (double*)TMemAlloc(m_memHandle, HIST_BIN*sizeof(double));
-    pG_pre = (double*)TMemAlloc(m_memHandle, HIST_BIN*sizeof(double));
-    pB_pre = (double*)TMemAlloc(m_memHandle, HIST_BIN*sizeof(double));
-    pR_cur = (double*)TMemAlloc(m_memHandle, HIST_BIN*sizeof(double));
-    pG_cur = (double*)TMemAlloc(m_memHandle, HIST_BIN*sizeof(double));
-    pB_cur = (double*)TMemAlloc(m_memHandle, HIST_BIN*sizeof(double));
+    pR_pre = (double*)TMemAlloc(m_memHandle, SAM_COLOR_HIST_BIN*sizeof(double));
+    pG_pre = (double*)TMemAlloc(m_memHandle, SAM_COLOR_HIST_BIN*sizeof(double));
+    pB_pre = (double*)TMemAlloc(m_memHandle, SAM_COLOR_HIST_BIN*sizeof(double));
+    pR_cur = (double*)TMemAlloc(m_memHandle, SAM_COLOR_HIST_BIN*sizeof(double));
+    pG_cur = (double*)TMemAlloc(m_memHandle, SAM_COLOR_HIST_BIN*sizeof(double));
+    pB_cur = (double*)TMemAlloc(m_memHandle, SAM_COLOR_HIST_BIN*sizeof(double));
     
     if ((0==pR_pre)||(0==pG_pre)||(0==pB_pre)
        ||(0==pR_cur)||(0==pG_cur)||(0==pB_cur)
        ||(imgNum<1))
         goto SAM_EXIT;
     
+
     m_sceneCount = 1;
     m_KFNum      = 0;  
     if (0 != computeHist(ppRGB[0], width, height, pitch, 
                          pR_cur, pG_cur, pB_cur))
         goto SAM_EXIT;
-    TMemCpy(pR_pre, pR_cur, HIST_BIN*sizeof(double));
-    TMemCpy(pG_pre, pG_cur, HIST_BIN*sizeof(double));
-    TMemCpy(pB_pre, pB_cur, HIST_BIN*sizeof(double));
+    TMemCpy(pR_pre, pR_cur, SAM_COLOR_HIST_BIN*sizeof(double));
+    TMemCpy(pG_pre, pG_cur, SAM_COLOR_HIST_BIN*sizeof(double));
+    TMemCpy(pB_pre, pB_cur, SAM_COLOR_HIST_BIN*sizeof(double));
     
     for (i=1; i<imgNum; i++)
     {
@@ -140,15 +145,20 @@ int Extract_KeyFrame::extractKF(unsigned char **ppRGB, int width,
                                  &isBoundary))
             goto SAM_EXIT;
 
-        TMemCpy(pR_pre, pR_cur, HIST_BIN*sizeof(double));
-        TMemCpy(pG_pre, pG_cur, HIST_BIN*sizeof(double));
-        TMemCpy(pB_pre, pB_cur, HIST_BIN*sizeof(double));
+        TMemCpy(pR_pre, pR_cur, SAM_COLOR_HIST_BIN*sizeof(double));
+        TMemCpy(pG_pre, pG_cur, SAM_COLOR_HIST_BIN*sizeof(double));
+        TMemCpy(pB_pre, pB_cur, SAM_COLOR_HIST_BIN*sizeof(double));
         if (1==isBoundary)
         {
-            m_index[m_KFNum] = i-1;
+#ifdef USE_MIDDLE_FRAME_AS_KEY_FRAME            
+            m_index[m_KFNum] = (i+shot_start)/2-1;
+            shot_start = i+1;
+#else
+            m_index[m_KFNum] = i-1;           
+#endif       
             m_KFNum ++;
         }
-
+        
         if(m_KFNum >= SAM_MAX_KEY_FRAME_NUM)
             break;
     }

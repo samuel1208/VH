@@ -3,8 +3,9 @@
 
 #include "base-object.hpp"
 
-#define SAM_MAX_KEY_FRAME_NUM (100)
-#define HIST_BIN              (100)
+#define SAM_MAX_KEY_FRAME_NUM        (100)
+#define SAM_COLOR_HIST_BIN           (100)
+#define USE_MIDDLE_FRAME_AS_KEY_FRAME
 
 /*
   Extract keyframes from a video using color histogram based 
